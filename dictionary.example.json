@@ -1,0 +1,35 @@
+{
+  "hotkeys": {
+    "ptt": "Key.ctrl_r + Key.shift_r",
+    "toggle": "Key.f8",
+    "cancel": "Key.esc"
+  },
+  "model_size": "small",
+  "compute_device": "auto",
+  "language": "de",
+  "sound_feedback": true,
+  "smart_cleanup": true,
+  "auto_paste": true,
+  "autostart": true,
+  "max_recording_seconds": 120,
+  "input_device": null,
+  "llm_polish": {
+    "mode": "off",
+    "ollama_url": "http://localhost:11434/v1/chat/completions",
+    "ollama_model": "qwen2.5:3b",
+    "cloud_url": "https://api.groq.com/openai/v1/chat/completions",
+    "cloud_model": "llama-3.3-70b-versatile"
+  },
+  "prompt_terms": [
+    "Projektbesprechung",
+    "Angebotsnummer",
+    "Kundendienst"
+  ],
+  "replacements": {
+    "neuer Absatz": "\n\n",
+    "neue Zeile": "\n",
+    "Stichpunkt": "\n• ",
+    "Anführungszeichen auf": "„",
+    "Anführungszeichen zu": "“"
+  }
+}

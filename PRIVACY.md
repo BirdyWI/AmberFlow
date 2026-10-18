@@ -1,0 +1,36 @@
+# Data handling
+
+- The global keyboard listener observes key presses/releases to recognize
+  shortcuts. It keeps the currently held keys in memory; there is no keystroke
+  log. Disable AmberFlow through the tray when it is not needed.
+- The microphone is opened only while recording. Float audio samples are held
+  in RAM, bounded by the recording limit, then passed to local faster-whisper.
+  AmberFlow does not save audio recordings. Native libraries and the operating
+  system may hold memory copies; releasing/zeroing Python buffers is not a
+  forensic secure-erasure guarantee.
+- Transcripts are processed in memory and inserted directly by default. A review
+  window is optional. The app
+  does not print dictated text or raw provider errors to the console and does
+  not maintain a transcript history. Native dependencies may emit diagnostics.
+- Direct insertion and manual copying place text on the system clipboard.
+  Other software, clipboard history and Windows synchronization can retain it.
+  AmberFlow does not clear the clipboard automatically because this could
+  destroy content copied by the user or another application.
+- Text polishing is optional. Ollama sends text to a loopback endpoint on the
+  same device. Cloud mode sends the full transcript, model choice and editing
+  instruction to the configured HTTPS provider with the supplied API key.
+  AmberFlow does not send audio to that provider. Polishing can change meaning.
+- Cloud is confirmed per session. A cancellation cannot retract a request
+  already received by the provider. No retention promise is made on its behalf.
+- Model setup can contact Hugging Face and download weights into the user's
+  cache. Dependency installation contacts package services. Offline inference
+  requires these downloads to have completed first.
+- Preferences and dictionary terms are local plaintext in
+  `%LOCALAPPDATA%\AmberFlow\config.json`. They can contain personal information;
+  do not upload that file. Protect your Windows account and backups accordingly.
+- Keys remain in process memory or come from `AMBERFLOW_API_KEY`; they are not
+  persisted by the app. A legacy dictionary containing a key is left untouched
+  and produces a warning. Review old private backups separately.
+
+This is a description of application behavior, not a guarantee about third-party
+software, Windows, a cloud provider, or compromised machines.
