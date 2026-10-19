@@ -10,7 +10,7 @@ import threading
 from urllib.parse import urlsplit
 import urllib.request
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 DEFAULT_CONFIG = {
     "hotkeys": {"ptt": "Key.ctrl_r + Key.shift_r", "toggle": "Key.f8", "cancel": "Key.esc"},
     "model_size": "small", "compute_device": "auto", "language": "de",

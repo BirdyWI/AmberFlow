@@ -1,6 +1,7 @@
 """AmberFlow Windows desktop application. Run with Python 3.11+."""
 
 from copy import deepcopy
+import ast
 import ctypes
 import os
 from pathlib import Path
@@ -116,13 +117,12 @@ class AmberFlowApp:
         root.update_idletasks()
         prepare_hud(root)
         root.protocol("WM_DELETE_WINDOW", root.withdraw)
-        self.listener = keyboard.Listener(
-            on_press=lambda key: self.events.put(("key", (True, key))),
-            on_release=lambda key: self.events.put(("key", (False, key))),
-        )
-        self.listener.start()
+        self.listener = None
+        self.last_listener_restart = 0.0
+        self.start_listener()
         self.tray = pystray.Icon("AmberFlow", self.icon(), "AmberFlow", pystray.Menu(
             pystray.MenuItem("Einstellungen", lambda: self.events.put(("settings", None)), default=True),
+            pystray.MenuItem("Tastenkürzel neu verbinden", lambda: self.events.put(("reconnect", None))),
             pystray.MenuItem("Modell erneut laden", lambda: self.events.put(("reload", None))),
             pystray.MenuItem("Status anzeigen", lambda: self.events.put(("show", None))),
             pystray.MenuItem("Beenden", lambda: self.events.put(("quit", None))),
@@ -199,6 +199,8 @@ class AmberFlowApp:
                     raise ConfigError("Unbekannte Taste im Hotkey.")
 
     def handle_key(self, pressed, key):
+        if key is None:
+            return
         name = self.key_string(key)
         if pressed:
             if name in self.pressed:
@@ -230,6 +232,60 @@ class AmberFlowApp:
             self.pressed.discard(name)
             if self.recording and self.mode == "ptt" and name in hotkeys["ptt"].split(" + "):
                 self.stop_recording()
+
+    def start_listener(self):
+        previous = self.listener
+        if previous is not None:
+            previous.stop()
+        self.listener = keyboard.Listener(
+            on_press=lambda key: self.events.put(("key", (True, key))),
+            on_release=lambda key: self.events.put(("key", (False, key))),
+        )
+        self.listener.start()
+        self.last_listener_restart = time.monotonic()
+
+    @staticmethod
+    def physical_key(name):
+        if name.startswith("Key."):
+            key = keyboard.Key[name[4:]]
+            vk = key.value.vk
+        elif name.startswith("VK_"):
+            vk = int(name[3:])
+            key = keyboard.KeyCode.from_vk(vk)
+        else:
+            key = keyboard.KeyCode.from_char(ast.literal_eval(name))
+            api = ctypes.windll.user32
+            api.VkKeyScanW.argtypes = [ctypes.c_wchar]
+            api.VkKeyScanW.restype = ctypes.c_short
+            mapped = api.VkKeyScanW(key.char)
+            if mapped == -1:
+                return key, False
+            vk = mapped & 0xff
+        api = ctypes.windll.user32
+        api.GetAsyncKeyState.argtypes = [ctypes.c_int]
+        api.GetAsyncKeyState.restype = ctypes.c_short
+        return key, bool(api.GetAsyncKeyState(vk) & 0x8000)
+
+    def reconcile_hotkeys(self):
+        # Hooks can disappear without their thread dying. Independently sample
+        # only configured hotkeys and keys already held, never typed text.
+        if getattr(self, "capture", None):
+            return
+        names = set(self.pressed)
+        for combo in self.config["hotkeys"].values():
+            names.update(combo.split(" + "))
+        states = {name: self.physical_key(name) for name in names}
+        missing = any(down and name not in self.pressed for name, (_, down) in states.items())
+        for name, (key, down) in states.items():
+            if not down and name in self.pressed:
+                self.handle_key(False, key)
+        for name, (key, down) in states.items():
+            if down and name not in self.pressed:
+                self.handle_key(True, key)
+        listener = getattr(self, "listener", None)
+        if listener is not None and (missing or not listener.is_alive()):
+            if time.monotonic() - self.last_listener_restart >= 5:
+                self.start_listener()
 
     def load_model(self):
         if self.recording or self.busy or self.loading:
@@ -648,6 +704,18 @@ class AmberFlowApp:
         window.option_add("*TCombobox*Listbox.selectBackground", "#2563eb")
 
     def poll(self):
+        if self.closing:
+            return
+        try:
+            self.process_events()
+        except Exception as exc:
+            # Never include event payloads (dictation/API data) in diagnostics.
+            self.status.set(f"Bedienfehler ({type(exc).__name__}); Verarbeitung wird fortgesetzt.")
+        finally:
+            if not self.closing:
+                self.root.after(30, self.poll)
+
+    def process_events(self):
         for _ in range(200):
             try:
                 event, value = self.events.get_nowait()
@@ -688,6 +756,10 @@ class AmberFlowApp:
                 self.show_status("Audiofehler: Aufnahme verworfen. Mikrofon prüfen.")
             elif event == "settings":
                 self.open_settings()
+            elif event == "reconnect":
+                self.start_listener()
+                self.pressed.clear()
+                self.show_status("Tastenkürzel neu verbunden.", visible=False)
             elif event == "reload":
                 self.load_model()
             elif event == "show":
@@ -696,8 +768,8 @@ class AmberFlowApp:
                 self.shutdown()
                 return
         if not self.closing:
+            self.reconcile_hotkeys()
             self.update_meter()
-            self.root.after(30, self.poll)
 
     def shutdown(self):
         self.closing = True

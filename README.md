@@ -3,7 +3,7 @@
 Local speech-to-text for Windows, with global push-to-talk, a tray menu,
 German voice commands and optional text polishing through Ollama or a cloud API.
 
-**Version: 0.2.0 — initial public source release.** This is a Python source distribution, not an
+**Version: 0.2.1 — Windows hotkey recovery.** This is a Python source distribution, not an
 installer or signed EXE. Windows desktop acceptance checks are listed in
 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). No macOS, Linux or Apple Neural
 Engine support is claimed for this release.
@@ -53,7 +53,7 @@ requires its own hardware acceptance test; an import check alone is insufficient
 - Hold **right Ctrl + right Shift**, speak, then release either key.
 - Press **F8** to start/stop hands-free recording.
 - Press **Escape** to cancel recording or discard pending processing output.
-- Right-click the tray icon for settings, status, model retry or exit.
+- Right-click the tray icon for settings, status, hotkey reconnection, model retry or exit.
 - The microphone opens only for a recording and closes at stop/cancel.
 - Recordings stop after 120 seconds by default; settings allow 5–600 seconds.
 - Only one recording/processing job runs at once. Wait for it to finish.
@@ -108,6 +108,18 @@ location and preserves the old file. An existing AmberFlow configuration takes
 priority. `ARGONFLOW_API_KEY` remains a fallback for the new `AMBERFLOW_API_KEY`.
 The old autostart entry is removed only when it points to this exact installation.
 Old and new app versions share an instance lock to avoid double recording.
+
+## Hotkey recovery
+
+The app reconciles configured shortcuts and held keys with the current Windows
+key state every UI cycle. This provides a fallback if the keyboard hook loses
+press/release events or is silently removed. Missing events can trigger a listener
+restart, with a five-second retry limit. The tray action **Tastenkürzel neu verbinden**
+reconnects the listener without reloading the speech model. Individual event-handler
+errors no longer permanently stop UI event processing.
+
+This fix covers simulated hook loss, lost releases and event-handler failures.
+It does not claim to reproduce every cause of long-running unresponsiveness.
 
 ## Settings and personal dictionary
 

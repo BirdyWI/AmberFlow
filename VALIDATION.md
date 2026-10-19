@@ -1,3 +1,16 @@
+# AmberFlow 0.2.1 validation — 2026-10-19
+
+74 tests passed locally, including three isolated interactive Windows tests.
+New tests cover silent hook loss, missed releases, no duplicate shortcut triggers,
+settings/capture behavior, idle stability and recovery after event-handler errors.
+The reported multi-minute idle failure has not been reproduced directly; these
+checks simulate the specific failure modes addressed by the fix. The owner subsequently
+confirmed that shortcuts remained responsive after idle periods in everyday use.
+All 74 local tests passed again before publication. No real speech
+or cloud calls were used for these tests.
+
+---
+
 # AmberFlow 0.2.0 validation — 2026-10-18
 
 ## Current release
