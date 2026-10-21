@@ -16,7 +16,7 @@ from amber_core import (ConfigError, ConfigStore, DEFAULT_CONFIG, VERSION,
                         clean_text, polish_text, validate_config, text_for_paste)
 from dictionary_editor import DictionaryEditor
 from autostart import set_autostart, migrate_legacy_autostart
-from windows_desktop import prepare_hud, show_hud, modifiers_down, paste_shortcut, acquire_instance, release_instance
+from windows_desktop import prepare_hud, show_hud, modifiers_down, type_unicode, TEXT_INPUT_MARKER, acquire_instance, release_instance
 
 # Keep the handles alive while native libraries are in use.
 DLL_HANDLES = []
@@ -238,6 +238,7 @@ class AmberFlowApp:
         if previous is not None:
             previous.stop()
         self.listener = keyboard.Listener(
+            win32_event_filter=lambda msg, data: data.dwExtraInfo != TEXT_INPUT_MARKER,
             on_press=lambda key: self.events.put(("key", (True, key))),
             on_release=lambda key: self.events.put(("key", (False, key))),
         )
@@ -477,40 +478,27 @@ class AmberFlowApp:
         self.busy = True
         self.attempt_delivery(payload, time.monotonic() + 4.0)
 
-    def attempt_delivery(self, payload, deadline, clipboard_ready=False):
+    def attempt_delivery(self, payload, deadline):
         job, text, target, warning = payload
         if self.closing or self.cancelled.is_set() or job != self.job_id or self.pending_delivery is not payload:
             return
         if modifiers_down():
             if time.monotonic() < deadline:
                 self.show_status("Zum Einfügen bitte die Steuertasten loslassen …")
-                self.root.after(40, lambda: self.attempt_delivery(payload, deadline, clipboard_ready))
+                self.root.after(40, lambda: self.attempt_delivery(payload, deadline))
                 return
             reason = "Steuertaste noch gedrückt"
         elif not target or foreground_window() != target:
             reason = "Zielfenster gewechselt"
         else:
             try:
-                if not clipboard_ready:
-                    pyperclip.copy(text)
-                    # Clipboard writes are synchronous; yield without an artificial delay.
-                    self.root.after(0, lambda: self.attempt_delivery(payload, deadline, True))
-                    return
-                if pyperclip.paste() != text:
-                    self.finish_delivery("Zwischenablage geändert – Text nicht eingefügt.")
-                    return
-                paste_shortcut()
+                type_unicode(text)
                 self.finish_delivery("Eingefügt." if not warning else "Eingefügt (ohne KI-Politur).")
                 return
             except Exception:
-                reason = "Windows hat das Einfügen blockiert"
-        # Exceptional focus/permission failure: no disruptive review window in direct mode.
-        try:
-            pyperclip.copy(text)
-            self.finish_delivery(f"{reason}. Text kopiert – mit Strg+V einfügen.")
-        except Exception:
-            self.finish_delivery("Einfügen und Kopieren fehlgeschlagen.")
-            self.show_result(text, "Windows-Zwischenablage nicht verfügbar.")
+                reason = "Texteingabe blockiert oder unvollständig – Zielfeld prüfen"
+        self.finish_delivery(f"{reason}. Diktat zur manuellen Übernahme geöffnet.")
+        self.show_result(text, f"{reason}. Die Zwischenablage bleibt unverändert. Bei Bedarf bewusst kopieren.")
 
     def finish_delivery(self, message):
         self.pending_delivery = None
@@ -597,8 +585,8 @@ class AmberFlowApp:
         selected = next((k for k, v in devices.items() if v == self.config["input_device"]), "Windows-Standard")
         field(general, 7, "Mikrofon", "input_device", selected, tuple(devices))
         field(general, 8, "Limit in Sekunden", "max_recording_seconds", self.config["max_recording_seconds"])
-        for row, (name, label) in enumerate((("sound_feedback", "Akustische Rückmeldung"), ("smart_cleanup", "Füllwörter entfernen"), ("auto_paste", "Direkt ins Textfeld einfügen (aus = Vorschau)"), ("autostart", "Bei der Windows-Anmeldung automatisch starten")), 9):
-            variable = tk.BooleanVar(value=self.config[name])
+        for row, (name, label) in enumerate((("sound_feedback", "Akustische Rückmeldung"), ("smart_cleanup", "Füllwörter entfernen"), ("auto_paste", "Diktat vor dem Einfügen prüfen"), ("autostart", "Bei der Windows-Anmeldung automatisch starten")), 9):
+            variable = tk.BooleanVar(value=not self.config[name] if name == "auto_paste" else self.config[name])
             variables[name] = variable
             ttk.Checkbutton(general, text=label, variable=variable).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
         ttk.Label(general, textvariable=self.status, wraplength=590).grid(row=13, column=0, columnspan=3, sticky="w", pady=8)
@@ -621,7 +609,7 @@ class AmberFlowApp:
             try:
                 candidate = deepcopy(self.config)
                 for name in ("model_size", "compute_device", "language", "sound_feedback", "smart_cleanup", "auto_paste", "autostart"):
-                    candidate[name] = variables[name].get()
+                    candidate[name] = not variables[name].get() if name == "auto_paste" else variables[name].get()
                 candidate["hotkeys"] = {k: variables[k].get() for k in candidate["hotkeys"]}
                 try:
                     candidate["max_recording_seconds"] = int(variables["max_recording_seconds"].get())

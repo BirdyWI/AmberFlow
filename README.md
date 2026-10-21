@@ -3,10 +3,24 @@
 Local speech-to-text for Windows, with global push-to-talk, a tray menu,
 German voice commands and optional text polishing through Ollama or a cloud API.
 
-**Version: 0.2.1 — Windows hotkey recovery.** This is a Python source distribution, not an
+**Version: 0.2.3 — reliable Notepad text and paragraphs without clipboard replacement.** This is a Python source distribution, not an
 installer or signed EXE. Windows desktop acceptance checks are listed in
 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). No macOS, Linux or Apple Neural
 Engine support is claimed for this release.
+
+### Notepad compatibility (0.2.3)
+
+The focused Windows RichEdit field receives text through `EM_REPLACESEL`, with
+Windows line endings and undo support. This avoids invisible text and broken
+paragraphs observed with Unicode keyboard packets in Windows 11 Notepad.
+Other applications retain the existing Unicode input behavior. Clipboard contents
+are never read or replaced by direct dictation. A timeout never retries insertion,
+because the editor might already have accepted the text.
+
+Local Windows acceptance on 2026-10-21: exact readback of 12,459 characters plus
+the trailing dictation space, visible word wrap and scrolling, and one-step undo.
+The native API behavior is documented by
+[Microsoft](https://learn.microsoft.com/en-us/windows/win32/controls/em-replacesel).
 
 ## Install on Windows
 
@@ -79,19 +93,21 @@ not create a duplicate microphone/keyboard listener; use the existing tray icon.
 Moving or removing the project requires updating/disabling its startup entry.
 
 **Direct insertion is the default.** On completion AmberFlow briefly waits for
-held Ctrl/Shift/Alt/Windows keys to be released, then pastes into the original
-active window through native Windows input. A trailing space separates consecutive
+held Ctrl/Shift/Alt/Windows keys to be released, then sends Unicode text into the original
+active window through native Windows input, without accessing the clipboard. A trailing space separates consecutive
 dictations; existing trailing spaces and line breaks are preserved. No transcript preview appears in
-normal direct mode. Disable **Direkt ins Textfeld einfügen** if you prefer the
+normal direct mode. Enable **Diktat vor dem Einfügen prüfen** if you prefer the
 optional review/copy window.
 
 If the target window changed, a modifier stays held for more than four seconds,
-or Windows blocks injection, the text is copied instead and a status message
-explains that manual Ctrl+V is needed. AmberFlow does not force focus back to a
-window you have left. Elevated applications may block input from a normal process.
+or Windows blocks injection, a recovery window offers the transcript for manual
+transfer. The clipboard remains untouched unless you explicitly select **Text kopieren**.
+If insertion was partial, check the target field before copying to avoid duplication.
+AmberFlow does not force focus back to a window you have left. Elevated applications
+may block input from a normal process. Some applications do not support Unicode
+input packets or interpret line breaks differently; use explicit review/copy there.
 A change of input field inside the same top-level window cannot be detected.
-Clipboard text can enter Windows clipboard history/synchronization. If the
-clipboard itself fails, a review window preserves the transcript as a last resort.
+Manual copying can enter Windows clipboard history/synchronization.
 
 Transcription and optional polishing may change words or meaning. Review
 important text before sending or relying on it.

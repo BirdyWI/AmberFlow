@@ -99,3 +99,77 @@ def paste_shortcut():
         api.SendInput(2, ctypes.cast(ctypes.byref(events, 2 * ctypes.sizeof(INPUT)),
                                     ctypes.POINTER(INPUT)), ctypes.sizeof(INPUT))
         raise OSError("Windows hat die Texteingabe blockiert.")
+
+
+TEXT_INPUT_MARKER = 0x414D4246
+
+
+class GUITHREADINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
+                ("hwndActive", wintypes.HWND), ("hwndFocus", wintypes.HWND),
+                ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+                ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND),
+                ("rcCaret", wintypes.RECT)]
+
+
+def insert_native_editor(text):
+    """Use RichEdit's selection API, bypassing Notepad's broken VK_PACKET path.
+
+    EM_REPLACESEL preserves selection, undo, current formatting and the clipboard.
+    Only the focused standard RichEdit control in the foreground window qualifies.
+    A timeout is ambiguous: report failure rather than inserting the text twice.
+    """
+    api = user32()
+    api.GetForegroundWindow.restype = wintypes.HWND
+    api.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.c_void_p]
+    api.GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(GUITHREADINFO)]
+    api.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    api.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+    api.GetAncestor.restype = wintypes.HWND
+    target = api.GetForegroundWindow()
+    thread = api.GetWindowThreadProcessId(target, None)
+    info = GUITHREADINFO()
+    info.cbSize = ctypes.sizeof(info)
+    if not thread or not api.GetGUIThreadInfo(thread, ctypes.byref(info)) or not info.hwndFocus:
+        return False
+    name = ctypes.create_unicode_buffer(256)
+    api.GetClassNameW(info.hwndFocus, name, len(name))
+    if name.value.lower() not in ("richeditd2dpt", "richedit50w", "richedit20w"):
+        return False
+    if api.GetAncestor(info.hwndFocus, 2) != target or api.GetForegroundWindow() != target:
+        raise OSError("Zielfenster gewechselt; keine Texteingabe gesendet.")
+    api.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, ctypes.c_size_t,
+                                        ctypes.c_void_p, wintypes.UINT, wintypes.UINT,
+                                        ctypes.POINTER(ctypes.c_size_t)]
+    api.SendMessageTimeoutW.restype = ctypes.c_ssize_t
+    content = ctypes.create_unicode_buffer(text.replace('\n', '\r\n'))
+    result = ctypes.c_size_t()
+    if not api.SendMessageTimeoutW(info.hwndFocus, 0x00C2, 1, ctypes.cast(content, ctypes.c_void_p),
+                                  0x0002, 2000, ctypes.byref(result)):
+        raise OSError("Editor antwortet nicht; Zielfeld vor erneutem Einfügen prüfen.")
+    return True
+
+
+def type_unicode(text):
+    """Submit Unicode text without reading or writing any clipboard format."""
+    # Normalize line endings and send line feeds as text, not Enter shortcuts.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if not text:
+        return
+    if insert_native_editor(text):
+        return
+    encoded = text.encode("utf-16-le")
+    units = [int.from_bytes(encoded[i:i + 2], "little") for i in range(0, len(encoded), 2)]
+    if not units:
+        return
+    events = (INPUT * (2 * len(units)))()
+    for i, unit in enumerate(units):
+        for offset, flags in ((0, 0x0004), (1, 0x0004 | 0x0002)):
+            events[2 * i + offset].type = 1
+            events[2 * i + offset].ki = KEYBDINPUT(0, unit, flags, 0, TEXT_INPUT_MARKER)
+    api = user32()
+    api.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
+    api.SendInput.restype = wintypes.UINT
+    if api.SendInput(len(events), events, ctypes.sizeof(INPUT)) != len(events):
+        # Do not retry: some characters may already have arrived.
+        raise OSError("Texteingabe möglicherweise unvollständig. Zielfeld prüfen.")
