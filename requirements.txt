@@ -7,4 +7,4 @@ numpy==2.4.6
 pyperclip==1.11.0
 pynput==1.8.2
 pystray==0.19.5
-Pillow==12.3.0
+Pillow==13.0.0

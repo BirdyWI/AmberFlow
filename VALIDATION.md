@@ -3,6 +3,12 @@
 83 tests passed locally, including three isolated interactive Windows tests.
 The owner subsequently confirmed successful everyday testing of the Windows fix.
 
+Publication checks identified eight advisories affecting the previous Pillow
+12.3.0 pin. Both dependency manifests now pin Pillow 13.0.0, the fixed version
+reported by pip-audit. This finding concerns the dependency and is not evidence
+of an exploit in AmberFlow. The application's generated tray icon and full local
+test suite are also checked with Pillow 13.0.0 before publication.
+
 - Windows 11 Notepad reproduced invisible text and missing paragraphs with the
   Unicode keyboard-input path introduced in local 0.2.2.
 - Native RichEdit insertion now preserves text, paragraphs, formatting and undo.
