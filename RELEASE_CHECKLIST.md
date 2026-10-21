@@ -1,4 +1,16 @@
-# AmberFlow 0.2.0 release checklist
+# AmberFlow 0.2.3 release checklist
+
+- [x] Clipboard-free direct input and the Notepad compatibility fix tested locally.
+- [x] 83 local tests passed, including three interactive Windows tests.
+- [x] Notepad long-text readback, paragraphs, word wrapping, scrolling and undo checked.
+- [x] Owner confirmed everyday Windows acceptance before publication.
+- [x] Only reviewed source, tests and documentation included; no private settings,
+  installation paths, recordings, models or runtime environments.
+
+GitHub Actions results are linked from the release pull request. The interactive
+desktop tests are opt-in and are not claimed to run on GitHub's hosted runner.
+
+## Previous 0.2.0 release checklist
 
 - [x] Product name updated in Cockpit, tray, windows and documentation.
 - [x] Existing settings retained through tested migration.

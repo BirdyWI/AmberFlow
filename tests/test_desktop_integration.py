@@ -1,7 +1,7 @@
 """Opt-in Windows tests against an isolated Tk text field, never another app.
 
 Run with AMBERFLOW_DESKTOP_TEST=1 on an interactive desktop. These tests briefly
-focus their own window and preserve/restore the current text clipboard.
+focus their own window and verify that the clipboard sequence stays unchanged.
 """
 import os
 import ctypes
@@ -116,20 +116,18 @@ class DesktopTests(unittest.TestCase):
 
     def test_native_paste_reaches_the_text_field_without_review_window(self):
         field, target = self.target_field()
-        previous = pyperclip.paste()
-        sample = "AmberFlow Einfügetest: Grüße.\nZweite Zeile."
-        try:
-            self.app.deliver(self.app.job_id, sample, target, True, "")
-            self.pump(.45)
-            self.assertEqual(field.get("1.0", "end-1c"), sample + " ")
-            self.app.deliver(self.app.job_id, "Nächster Satz.", target, True, "")
-            self.pump(.2)
-            self.assertEqual(field.get("1.0", "end-1c"), sample + " Nächster Satz. ")
-            self.assertIsNone(self.app.result_window)
-            self.assertFalse(self.root.winfo_viewable())
-        finally:
-            if pyperclip.paste() in (sample + " ", "Nächster Satz. "):
-                pyperclip.copy(previous)
+        sequence = ctypes.windll.user32.GetClipboardSequenceNumber()
+        sample = "AmberFlow Einfügetest: Grüße „gut“.\n\n• Zweite Zeile."
+        self.app.deliver(self.app.job_id, sample, target, True, "")
+        self.pump(.45)
+        self.assertEqual(field.get("1.0", "end-1c"), sample + " ")
+        self.app.deliver(self.app.job_id, "Nächster Satz.", target, True, "")
+        self.pump(.2)
+        self.assertEqual(field.get("1.0", "end-1c"), sample + " Nächster Satz. ")
+        self.assertEqual(ctypes.windll.user32.GetClipboardSequenceNumber(), sequence)
+        self.assertIsNone(self.app.result_window)
+        self.assertFalse(self.root.winfo_viewable())
+
 
 
 if __name__ == "__main__":

@@ -12,10 +12,10 @@
   window is optional. The app
   does not print dictated text or raw provider errors to the console and does
   not maintain a transcript history. Native dependencies may emit diagnostics.
-- Direct insertion and manual copying place text on the system clipboard.
-  Other software, clipboard history and Windows synchronization can retain it.
-  AmberFlow does not clear the clipboard automatically because this could
-  destroy content copied by the user or another application.
+- Direct insertion sends Unicode input without reading, replacing or restoring
+  any clipboard data. Existing text, rich text, images and file lists stay intact.
+  Only explicitly selecting **Text kopieren** puts a transcript on the clipboard;
+  clipboard history, synchronization and other software can then retain it.
 - Text polishing is optional. Ollama sends text to a loopback endpoint on the
   same device. Cloud mode sends the full transcript, model choice and editing
   instruction to the configured HTTPS provider with the supplied API key.
