@@ -12,13 +12,17 @@
   process memory for the explicit tray recovery action; it is cleared at shutdown.
   No transcript log or audio file is written by the app. The preview appears only
   when requested. Native dependencies may emit diagnostics.
-- Automatic insertion writes the transcript to the Windows clipboard, reads it
-  back to check for intervening changes, and sends Ctrl+V. Previous clipboard
-  contents are replaced and are not restored. The last copied text remains on the
-  clipboard, including after the app exits. Clipboard history, synchronization and
-  other software can retain it. Explicit **Text kopieren** has the same exposure.
-  If a target check fails after copying, the text can remain on the clipboard even
-  though no paste is sent.
+- Automatic insertion temporarily places the transcript on the Windows clipboard.
+  Supported previous formats are held only in RAM and restored after the paste
+  transaction; a newer user copy is preserved instead. Unreadable, unsupported or
+  oversized formats cause an abort before publication. A confirmed empty Windows
+  enterprise-identity marker can be omitted; actual or unclear identities are not
+  silently discarded. History/cloud opt-out markers are supplied, but no guarantee
+  is made about third-party clipboard managers. A hard process termination or
+  restore failure can leave temporary content behind. Explicit **Text kopieren**
+  intentionally leaves the transcript on the clipboard and can enter history/sync.
+- Only the latest technical delivery status and duration are held in process
+  memory. No delivery transcript or recording log is written.
 - Text polishing is optional. Ollama sends text to a loopback endpoint on the
   same device. Cloud mode sends the full transcript, model choice and editing
   instruction to the configured HTTPS provider with the supplied API key.

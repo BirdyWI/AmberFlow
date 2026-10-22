@@ -1,3 +1,16 @@
+# AmberFlow 0.2.5 source release checklist
+
+- [x] Separate candidate tested; owner accepted real dictation and clipboard preservation.
+- [x] Corrected candidate: 107 tests passed, 3 interactive desktop checks skipped;
+  the preceding integrated candidate passed all three desktop checks.
+- [x] Final real-use acceptance of the updated normal installation, including clipboard preservation.
+- [x] Explicit owner approval for GitHub publication after local acceptance.
+- [ ] Installer/signing/native dependency licensing gates remain separate.
+
+The following section is historical 0.2.4 evidence, not 0.2.5 release approval.
+
+---
+
 # AmberFlow 0.2.4 release checklist
 
 - 89 tests passed locally on Windows/Python 3.11, including all three interactive

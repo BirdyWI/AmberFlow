@@ -1,3 +1,30 @@
+# AmberFlow 0.2.5 validation — 2026-10-22
+
+- Final corrected candidate: 110 tests executed, 107 passed and 3 desktop tests
+  skipped. All 11 real clipboard tests passed, including the fresh-copy empty
+  EnterpriseDataProtectionId regression. The three desktop checks had passed in
+  the preceding integrated candidate (104/104 tests).
+- The owner subsequently accepted real dictation in Notepad and browser fields
+  and confirmed that the previous copied text remained available afterward.
+- Clipboard preservation, newer user copies (including identical text), multiple
+  formats, cancellation, focus checks, shutdown while restoring, and deterministic
+  paragraph/line/bullet/quote processing are covered. No automatic paste retries.
+- The upgraded normal installation was accepted by the owner after final real-use
+  testing in Notepad and browser fields. The owner also reported that the earlier
+  insertion pause had disappeared. This is owner-observed behavior, not a controlled
+  latency benchmark. Existing settings and runtime were preserved and the normal
+  desktop shortcut was verified against version 0.2.5.
+- Public source publication was explicitly approved after local acceptance.
+  No signed installer or model/runtime bundle is produced by this source update.
+- Publication recheck with public Pillow 13.0.0: 110 tests executed, 96 passed,
+  14 real-clipboard/desktop tests skipped. Dependency specifications retain the
+  existing public pins; GitHub CI separately checks the full pinned environment.
+- The first data request is not an insertion acknowledgment. Clipboard-manager
+  interference, unusually slow targets, unsupported formats and hard termination
+  remain limitations. No universal compatibility claim is made.
+
+---
+
 # AmberFlow 0.2.4 validation — 2026-10-22
 
 - 89 tests passed locally on Windows/Python 3.11, including all three interactive

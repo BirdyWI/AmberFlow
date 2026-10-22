@@ -3,21 +3,27 @@
 Local speech-to-text for Windows, with global push-to-talk, a tray menu,
 German voice commands and optional text polishing through Ollama or a cloud API.
 
-**Version: 0.2.4 — clipboard-based dictation with reliable line breaks.** This is a Python source distribution, not an
+**Version: 0.2.5 — formatted dictation with clipboard restoration.** This is a Python source distribution, not an
 installer or signed EXE. Windows desktop acceptance checks are listed in
 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). No macOS, Linux or Apple Neural
 Engine support is claimed for this release.
 
-### Text-field compatibility (0.2.4)
+### Text-field compatibility (0.2.5)
 
-Automatic dictation now copies the prepared text to the Windows clipboard and
-sends Ctrl+V. This replaces direct Unicode keyboard packets, which lost line
-breaks in browser fields. The clipboard keeps the last inserted dictation.
+Automatic dictation temporarily provides prepared text through the Windows clipboard
+and sends Ctrl+V. Previous supported clipboard formats are saved in memory and
+restored after an observed text request plus a safety interval, or a bounded timeout.
+A newer user copy takes precedence. There is no automatic retry.
 
-The owner accepted real dictation in Notepad and browser fields after testing
-the clipboard candidate, and then accepted the installed 0.2.4 build. LinkedIn
-may display paragraph breaks as single line breaks; this remains a target-editor
-limitation. Compatibility with every application is not guaranteed.
+Unreadable, unsupported or oversized formats cause a safe abort before replacing
+the clipboard. An unreadable EnterpriseDataProtectionId marker is omitted only
+when the documented Windows API confirms that no enterprise identity exists.
+This fixes the abort observed after fresh Ctrl+C in Windows Notepad.
+
+The owner accepted real dictation and clipboard preservation in Notepad and browser
+fields with the separate candidate, then accepted the upgraded normal installation
+and reported that the earlier insertion pause had disappeared. LinkedIn may display paragraph breaks as single line breaks;
+compatibility with every application is not guaranteed.
 
 ## Install on Windows
 
@@ -96,8 +102,12 @@ Moving or removing the project requires updating/disabling its startup entry.
 briefly for held modifier keys to be released, checks the original foreground
 window, copies the prepared text and sends Ctrl+V. A trailing space separates
 consecutive dictations; existing trailing whitespace and line breaks are preserved.
-This replaces previous clipboard contents and can enter Windows clipboard history
-or synchronization. The previous clipboard is not restored.
+The previous supported clipboard contents are restored; copying something new
+during the transaction takes precedence. Windows history/cloud opt-out markers
+are set, but third-party clipboard managers may still retain the transcript.
+The first clipboard read is not proof of successful insertion into the intended
+field. A safety interval and an eight-second timeout bound the restore; an
+exceptionally delayed target or a hard process termination remains a limitation.
 
 The preview remains hidden unless you enable **Diktat vor dem Einfügen prüfen**
 or explicitly choose **Letztes Diktat anzeigen** in the tray. The latter retains
@@ -218,6 +228,13 @@ actual paste into their own isolated Tk text field. Enable them with
 `$env:AMBERFLOW_DESKTOP_TEST="1"` before running the tests on an interactive desktop.
 They briefly activate their own window and place synthetic test text on the clipboard.
 Real speech and target-app behavior were accepted by the owner on their Windows computer. Other hardware and applications can behave differently. Live Ollama/cloud integration has not been verified.
+
+Eleven additional native clipboard tests are opt-in: set
+`$env:AMBERFLOW_CLIPBOARD_TEST="1"` on an interactive Windows desktop and rerun
+the suite while not copying or dictating. They use synthetic clipboard fixtures
+and restore the original supported contents; a detected newer copy takes priority.
+Unsupported originals abort setup rather than being discarded. These are separate
+from the three desktop tests and are not enabled in hosted CI.
 
 The code is split into `amber_core.py` (configuration, cleanup and HTTP safety),
 `app.py` (UI and recording coordination), `dictionary_editor.py` (dictionary UI),

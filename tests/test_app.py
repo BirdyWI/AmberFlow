@@ -35,6 +35,7 @@ def app_fixture():
     app.pressed = set()
     app.api_key = ""
     app.pending_delivery = None
+    app.paste_transaction = None
     app.last_dictation = ""
     app.tray = MagicMock()
     app.processing_job = None
@@ -176,21 +177,19 @@ class DeliveryTests(unittest.TestCase):
         app.show_result.assert_not_called()
         release_callback = app.root.after.call_args.args[1]
         with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=10), \
-             patch("app.pyperclip.copy") as copy, patch("app.pyperclip.paste", return_value="private "), \
-             patch("app.paste_shortcut") as paste:
+             patch("app.PasteTransaction") as transaction:
             release_callback()
-        copy.assert_called_once_with("private ")
-        paste.assert_called_once()
+        self.assertEqual(transaction.call_args.args[0], "private ")
+        transaction.return_value.start.assert_called_once()
         app.show_result.assert_not_called()
 
     def test_opted_in_same_window_pastes(self):
         app = app_fixture()
         with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=10), \
-             patch("app.pyperclip.copy") as copy, patch("app.pyperclip.paste", return_value="private "), \
-             patch("app.paste_shortcut") as paste:
+             patch("app.PasteTransaction") as transaction:
             app.deliver(1, "private", 10, True, "")
-        copy.assert_called_once_with("private ")
-        paste.assert_called_once()
+        self.assertEqual(transaction.call_args.args[0], "private ")
+        self.assertTrue(app.busy)
 
     def test_cancel_while_waiting_prevents_paste(self):
         app = app_fixture()
@@ -207,20 +206,55 @@ class DeliveryTests(unittest.TestCase):
         app = app_fixture()
         app.pressed = {"'a'"}
         with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=10), \
-             patch("app.pyperclip.copy"), patch("app.pyperclip.paste", return_value="private "), \
-             patch("app.paste_shortcut") as paste:
+             patch("app.PasteTransaction") as transaction:
             app.deliver(1, "private", 10, True, "")
-        paste.assert_called_once()
+        transaction.return_value.start.assert_called_once()
 
-    def test_changed_clipboard_prevents_paste(self):
+    def test_guard_is_rechecked_during_async_delivery(self):
         app = app_fixture()
         with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=10), \
-             patch("app.pyperclip.copy"), patch("app.pyperclip.paste", return_value="other"), \
-             patch("app.paste_shortcut") as paste:
+             patch("app.PasteTransaction") as transaction:
             app.deliver(1, "private", 10, True, "")
-        paste.assert_not_called()
+            guard = transaction.call_args.args[1]
+            self.assertTrue(guard())
+            app.cancelled.set()
+            self.assertFalse(guard())
         app.show_result.assert_not_called()
         self.assertEqual(app.last_dictation, "private")
+
+    def test_read_completion_releases_busy_without_preview(self):
+        app = app_fixture()
+        payload = (1, "text", 10, "")
+        app.pending_delivery = payload
+        app.busy = True
+        app.paste_transaction = SimpleNamespace(done=threading.Event(), status='read_observed_restored', ms=510, error=None)
+        app.paste_transaction.done.set()
+        app.poll_delivery(payload)
+        self.assertFalse(app.busy)
+        self.assertIsNone(app.paste_transaction)
+        self.assertIsNone(app.pending_delivery)
+        app.show_result.assert_not_called()
+        self.assertEqual(app.delivery_diagnostics, {'status':'read_observed_restored', 'duration_ms':510})
+
+    def test_cancel_waits_for_clipboard_cleanup_before_next_recording(self):
+        app = app_fixture()
+        app.paste_transaction = SimpleNamespace(done=threading.Event())
+        app.cancel()
+        self.assertTrue(app.busy)
+
+    def test_done_event_keeps_app_busy_during_clipboard_transaction(self):
+        app = app_fixture()
+        app.paste_transaction = SimpleNamespace(done=threading.Event())
+        app.events.put(('done', 1))
+        app.process_events()
+        self.assertTrue(app.busy)
+
+    def test_shutdown_waits_without_blocking_tk_or_destroying_window(self):
+        app = app_fixture()
+        app.paste_transaction = SimpleNamespace(done=threading.Event())
+        app.shutdown()
+        app.root.after.assert_called_once()
+        app.root.destroy.assert_not_called()
 
     def test_done_keeps_app_busy_until_pending_delivery_finishes(self):
         app = app_fixture()
@@ -235,6 +269,16 @@ class DeliveryTests(unittest.TestCase):
 
 
 class TranscriptionTests(unittest.TestCase):
+    def test_recognized_commands_reach_async_paste_formatted(self):
+        app = app_fixture()
+        app.model.transcribe.return_value = ([SimpleNamespace(text='Erster Satz. neuer Absatz Zweiter Absatz. neue Zeile Dritte Zeile. Stichpunkt Brot Anführungszeichen auf Guten Morgen Anführungszeichen zu.')], None)
+        app.transcribe([np.zeros((100, 1))], app.config, app.model, 1, app.cancelled, 10, '')
+        with patch('app.modifiers_down', return_value=False), patch('app.foreground_window', return_value=10), patch('app.PasteTransaction') as tx:
+            app.process_events()
+        self.assertEqual(tx.call_args.args[0], 'Erster Satz.\n\nZweiter Absatz.\nDritte Zeile.\n• Brot „Guten Morgen“. ')
+        self.assertTrue(app.busy)
+        app.show_result.assert_not_called()
+
     def test_cancellation_during_segments_does_not_polish_or_deliver(self):
         app = app_fixture()
         def segments():
