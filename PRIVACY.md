@@ -8,14 +8,17 @@
   AmberFlow does not save audio recordings. Native libraries and the operating
   system may hold memory copies; releasing/zeroing Python buffers is not a
   forensic secure-erasure guarantee.
-- Transcripts are processed in memory and inserted directly by default. A review
-  window is optional. The app
-  does not print dictated text or raw provider errors to the console and does
-  not maintain a transcript history. Native dependencies may emit diagnostics.
-- Direct insertion sends Unicode input without reading, replacing or restoring
-  any clipboard data. Existing text, rich text, images and file lists stay intact.
-  Only explicitly selecting **Text kopieren** puts a transcript on the clipboard;
-  clipboard history, synchronization and other software can then retain it.
+- Transcripts are processed in memory. Only the latest dictation is retained in
+  process memory for the explicit tray recovery action; it is cleared at shutdown.
+  No transcript log or audio file is written by the app. The preview appears only
+  when requested. Native dependencies may emit diagnostics.
+- Automatic insertion writes the transcript to the Windows clipboard, reads it
+  back to check for intervening changes, and sends Ctrl+V. Previous clipboard
+  contents are replaced and are not restored. The last copied text remains on the
+  clipboard, including after the app exits. Clipboard history, synchronization and
+  other software can retain it. Explicit **Text kopieren** has the same exposure.
+  If a target check fails after copying, the text can remain on the clipboard even
+  though no paste is sent.
 - Text polishing is optional. Ollama sends text to a loopback endpoint on the
   same device. Cloud mode sends the full transcript, model choice and editing
   instruction to the configured HTTPS provider with the supplied API key.

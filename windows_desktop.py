@@ -90,7 +90,7 @@ def paste_shortcut():
     events = (INPUT * 4)()
     for event, (vk, flags) in zip(events, ((0x11, 0), (0x56, 0), (0x56, 2), (0x11, 2))):
         event.type = 1
-        event.ki = KEYBDINPUT(vk, 0, flags, 0, 0)
+        event.ki = KEYBDINPUT(vk, 0, flags, 0, TEXT_INPUT_MARKER)
     api = user32()
     api.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
     api.SendInput.restype = wintypes.UINT

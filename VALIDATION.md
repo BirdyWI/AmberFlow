@@ -1,3 +1,33 @@
+# AmberFlow 0.2.4 validation — 2026-10-22
+
+- 89 tests passed locally on Windows/Python 3.11, including all three interactive
+  desktop tests. Clipboard delivery, focus/clipboard races, cancellation, no
+  duplicate paste, explicit-only preview and dictionary hints are covered.
+- The owner accepted the isolated clipboard speech test and the installed 0.2.4
+  build in Notepad and browser fields. Chrome and Firefox were included in the
+  requested acceptance workflow. LinkedIn's paragraph-to-line-break behavior is
+  accepted as a remaining limitation; Google Docs is not separately certified here.
+- A separate AmberFlow environment passed pip check and all 89 tests; cached
+  large-v3-turbo performed synthetic-silence inference on CUDA. No imports from
+  the previous ArgonFlow directory were observed. Desktop shortcut and autostart
+  were verified against the new environment; a Windows login/reboot was not tested.
+- Publication retains the existing public Pillow 13.0.0 lock, rather than copying
+  the local installation's older dependency manifest. GitHub CI validates the
+  public lock separately; interactive desktop checks are not run in hosted CI.
+- Only source, regression tests and documentation are included. No runtime,
+  personal configuration, test transcripts or local installation scripts are shipped.
+
+Publication recheck: 86 non-interactive tests passed with public Pillow 13.0.0
+(three desktop tests skipped). An additional desktop rerun encountered focus
+interference: one target-focus assertion and the second consecutive paste failed.
+The earlier complete 89-test runs and owner acceptance remain recorded above;
+the interrupted rerun is not counted as a pass.
+
+This is a source update, not a signed installer. Live cloud/Ollama acceptance
+and compatibility with every Windows text field are not claimed.
+
+---
+
 # AmberFlow 0.2.3 validation — 2026-10-21
 
 83 tests passed locally, including three isolated interactive Windows tests.

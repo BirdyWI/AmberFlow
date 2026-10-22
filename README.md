@@ -3,24 +3,21 @@
 Local speech-to-text for Windows, with global push-to-talk, a tray menu,
 German voice commands and optional text polishing through Ollama or a cloud API.
 
-**Version: 0.2.3 — reliable Notepad text and paragraphs without clipboard replacement.** This is a Python source distribution, not an
+**Version: 0.2.4 — clipboard-based dictation with reliable line breaks.** This is a Python source distribution, not an
 installer or signed EXE. Windows desktop acceptance checks are listed in
 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). No macOS, Linux or Apple Neural
 Engine support is claimed for this release.
 
-### Notepad compatibility (0.2.3)
+### Text-field compatibility (0.2.4)
 
-The focused Windows RichEdit field receives text through `EM_REPLACESEL`, with
-Windows line endings and undo support. This avoids invisible text and broken
-paragraphs observed with Unicode keyboard packets in Windows 11 Notepad.
-Other applications retain the existing Unicode input behavior. Clipboard contents
-are never read or replaced by direct dictation. A timeout never retries insertion,
-because the editor might already have accepted the text.
+Automatic dictation now copies the prepared text to the Windows clipboard and
+sends Ctrl+V. This replaces direct Unicode keyboard packets, which lost line
+breaks in browser fields. The clipboard keeps the last inserted dictation.
 
-Local Windows acceptance on 2026-10-21: exact readback of 12,459 characters plus
-the trailing dictation space, visible word wrap and scrolling, and one-step undo.
-The native API behavior is documented by
-[Microsoft](https://learn.microsoft.com/en-us/windows/win32/controls/em-replacesel).
+The owner accepted real dictation in Notepad and browser fields after testing
+the clipboard candidate, and then accepted the installed 0.2.4 build. LinkedIn
+may display paragraph breaks as single line breaks; this remains a target-editor
+limitation. Compatibility with every application is not guaranteed.
 
 ## Install on Windows
 
@@ -38,7 +35,10 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe app.py
 ```
 
-Environment activation is unnecessary. Installation needs internet access.
+Create the virtual environment inside this AmberFlow checkout; do not reuse an
+ArgonFlow environment. Desktop shortcuts and autostart must point to this checkout
+and its own Python executable. The installed system Python and user model cache
+remain separate dependencies. Environment activation is unnecessary. Installation needs internet access.
 On first use, faster-whisper downloads the selected model from Hugging Face
 into its user cache. A different model may trigger another download. Allow
 several GB of free disk space for larger models and sufficient RAM/VRAM;
@@ -76,7 +76,7 @@ On manual launch the dark Cockpit opens, including while the model loads.
 Close it to return to your work. The compact nonactivating HUD shows five live
 level bars in **red during recording** and switches to **orange during transcription
 and pending insertion**. It disappears when insertion finishes or you cancel.
-It stays hidden while idle. Status/error messages also appear in settings/tray.
+It stays hidden while idle. Engine readiness appears in settings; operation status is available through the tray.
 
 ### Windows autostart
 
@@ -92,22 +92,25 @@ without a settings window. Manual launch opens settings. A second launch does
 not create a duplicate microphone/keyboard listener; use the existing tray icon.
 Moving or removing the project requires updating/disabling its startup entry.
 
-**Direct insertion is the default.** On completion AmberFlow briefly waits for
-held Ctrl/Shift/Alt/Windows keys to be released, then sends Unicode text into the original
-active window through native Windows input, without accessing the clipboard. A trailing space separates consecutive
-dictations; existing trailing spaces and line breaks are preserved. No transcript preview appears in
-normal direct mode. Enable **Diktat vor dem Einfügen prüfen** if you prefer the
-optional review/copy window.
+**Automatic clipboard insertion is the default.** On completion AmberFlow waits
+briefly for held modifier keys to be released, checks the original foreground
+window, copies the prepared text and sends Ctrl+V. A trailing space separates
+consecutive dictations; existing trailing whitespace and line breaks are preserved.
+This replaces previous clipboard contents and can enter Windows clipboard history
+or synchronization. The previous clipboard is not restored.
 
-If the target window changed, a modifier stays held for more than four seconds,
-or Windows blocks injection, a recovery window offers the transcript for manual
-transfer. The clipboard remains untouched unless you explicitly select **Text kopieren**.
-If insertion was partial, check the target field before copying to avoid duplication.
-AmberFlow does not force focus back to a window you have left. Elevated applications
-may block input from a normal process. Some applications do not support Unicode
-input packets or interpret line breaks differently; use explicit review/copy there.
-A change of input field inside the same top-level window cannot be detected.
-Manual copying can enter Windows clipboard history/synchronization.
+The preview remains hidden unless you enable **Diktat vor dem Einfügen prüfen**
+or explicitly choose **Letztes Diktat anzeigen** in the tray. The latter retains
+only the latest dictation in process memory, not a saved transcript log.
+
+If the target changed, modifiers remain held, or insertion fails, a tray notice
+offers the explicit recovery action; no preview opens automatically. There is
+no automatic retry after a possibly partial paste. Check the destination before
+reusing the retained text to avoid duplicates. AmberFlow does not force focus back
+to a window you have left. Clipboard changes and focus are rechecked before Ctrl+V;
+the clipboard can still change after that check. A different field inside the same
+top-level window cannot be detected. Elevated or paste-blocking apps may reject
+input, and single-line fields cannot preserve multiline formatting.
 
 Transcription and optional polishing may change words or meaning. Review
 important text before sending or relying on it.
@@ -115,8 +118,11 @@ important text before sending or relying on it.
 ## Upgrading from ArgonFlow
 
 AmberFlow is the new name of this Windows dictation app. The Cockpit, tray and
-windows use AmberFlow. Existing installations may keep their ArgonFlow directory;
-there is no need to move the Python environment or downloaded models.
+windows use AmberFlow. For independent installations, keep the previous directory
+as a backup and install AmberFlow with its own environment using the steps above.
+Do not move an existing virtual environment: recreate it in the new directory.
+Update shortcuts and startup entries, and close the old app before starting the new
+one. Downloaded models can remain in the user cache.
 
 If AmberFlow settings do not yet exist, the app reads the previous
 `%LOCALAPPDATA%\ArgonFlow\config.json`. Saving writes to the new AmberFlow
@@ -210,7 +216,7 @@ they do not record speech or call a provider. CI runs them on Windows/Python 3.1
 and audits dependencies. Three additional opt-in desktop tests verify settings startup, HUD focus and
 actual paste into their own isolated Tk text field. Enable them with
 `$env:AMBERFLOW_DESKTOP_TEST="1"` before running the tests on an interactive desktop.
-They briefly activate their own window and preserve the current text clipboard.
+They briefly activate their own window and place synthetic test text on the clipboard.
 Real speech and target-app behavior were accepted by the owner on their Windows computer. Other hardware and applications can behave differently. Live Ollama/cloud integration has not been verified.
 
 The code is split into `amber_core.py` (configuration, cleanup and HTTP safety),
@@ -225,3 +231,6 @@ AmberFlow source is licensed under the [MIT License](LICENSE). Dependencies and
 downloaded models retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 The tray icon is drawn by the application. Legacy local logo files are not
 included in this distribution.
+
+Dictionary rows show real line breaks as ↵. Use Enter once for a line break or
+twice for a blank line; a literal `\n` is flagged as text, not silently converted.
