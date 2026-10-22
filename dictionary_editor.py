@@ -31,13 +31,26 @@ class DictionaryEditor(ttk.Frame):
         self.spoken = ttk.Entry(self)
         self.spoken.pack(fill="x")
         ttk.Label(self, text="Was eingefügt wird (Enter für einen Zeilenumbruch):").pack(anchor="w", pady=(4, 0))
+        ttk.Label(self, text="↵ = Zeilenumbruch; ↵ ↵ = Absatz. Im Eingabefeld einmal bzw. zweimal Enter drücken.",
+                  wraplength=580).pack(anchor="w")
         self.written = self.text_box(2)
+        self.literal_hint = tk.StringVar()
+        ttk.Label(self, textvariable=self.literal_hint, wraplength=580).pack(anchor="w")
+        self.written.bind("<<Modified>>", self.update_hint)
         bar = ttk.Frame(self)
         bar.pack(fill="x", pady=4)
         ttk.Button(bar, text="Neu", command=self.new).pack(side="left")
         ttk.Button(bar, text="Eintrag übernehmen", command=self.apply).pack(side="left", padx=6)
         ttk.Button(bar, text="Entfernen", command=self.remove).pack(side="left")
         self.refresh()
+
+    def update_hint(self, _event=None):
+        if not self.written.edit_modified():
+            return
+        value = self.written.get("1.0", "end-1c")
+        self.literal_hint.set("Hinweis: " + chr(92) + "n ist hier wörtlicher Text. Für einen Umbruch Enter drücken."
+                              if chr(92) + "n" in value else "")
+        self.written.edit_modified(False)
 
     def text_box(self, height):
         box = tk.Text(self, height=height, wrap="word", bg="#27272a", fg="#f4f4f5",
@@ -49,6 +62,8 @@ class DictionaryEditor(ttk.Frame):
         self.table.delete(*self.table.get_children())
         for index, (spoken, written) in enumerate(self.rows.items()):
             display = written.replace("\n", " ↵ ") or "(entfernen)"
+            if chr(92) + "n" in written:
+                display += " (wörtlich, kein Umbruch)"
             self.table.insert("", "end", iid=spoken, values=(spoken, display))
 
     def values(self):

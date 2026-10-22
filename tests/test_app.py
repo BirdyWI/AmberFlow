@@ -35,6 +35,8 @@ def app_fixture():
     app.pressed = set()
     app.api_key = ""
     app.pending_delivery = None
+    app.last_dictation = ""
+    app.tray = MagicMock()
     app.processing_job = None
     app.hud_hide_timer = None
     app.root = MagicMock()
@@ -130,6 +132,16 @@ class RecordingTests(unittest.TestCase):
 
 
 class DeliveryTests(unittest.TestCase):
+    def test_last_dictation_opens_only_on_explicit_event(self):
+        app = app_fixture()
+        with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=20):
+            app.deliver(1, "A\n\nB", 10, True, "")
+        app.show_result.assert_not_called()
+        self.assertEqual(app.last_dictation, "A\n\nB")
+        app.events.put(("last_dictation", None))
+        app.poll()
+        self.assertEqual(app.show_result.call_args.args[0], "A\n\nB")
+
     def test_explicit_review_mode_without_clipboard_access(self):
         app = app_fixture()
         with patch("app.pyperclip.copy") as copy:
@@ -143,7 +155,7 @@ class DeliveryTests(unittest.TestCase):
             app.deliver(1, "private", 10, True, "")
         copy.assert_not_called()
         app.controller.press.assert_not_called()
-        app.show_result.assert_called_once()
+        app.show_result.assert_not_called()
         self.assertIsNone(app.pending_delivery)
 
     def test_cancelled_and_stale_jobs_cannot_deliver(self):
@@ -165,9 +177,9 @@ class DeliveryTests(unittest.TestCase):
         release_callback = app.root.after.call_args.args[1]
         with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=10), \
              patch("app.pyperclip.copy") as copy, patch("app.pyperclip.paste", return_value="private "), \
-             patch("app.type_unicode") as paste:
+             patch("app.paste_shortcut") as paste:
             release_callback()
-        copy.assert_not_called()
+        copy.assert_called_once_with("private ")
         paste.assert_called_once()
         app.show_result.assert_not_called()
 
@@ -175,9 +187,9 @@ class DeliveryTests(unittest.TestCase):
         app = app_fixture()
         with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=10), \
              patch("app.pyperclip.copy") as copy, patch("app.pyperclip.paste", return_value="private "), \
-             patch("app.type_unicode") as paste:
+             patch("app.paste_shortcut") as paste:
             app.deliver(1, "private", 10, True, "")
-        copy.assert_not_called()
+        copy.assert_called_once_with("private ")
         paste.assert_called_once()
 
     def test_cancel_while_waiting_prevents_paste(self):
@@ -186,7 +198,7 @@ class DeliveryTests(unittest.TestCase):
             app.deliver(1, "private", 10, True, "")
         callback = app.root.after.call_args.args[1]
         app.cancel()
-        with patch("app.type_unicode") as paste, patch("app.pyperclip.copy") as copy:
+        with patch("app.paste_shortcut") as paste, patch("app.pyperclip.copy") as copy:
             callback()
         paste.assert_not_called()
         copy.assert_not_called()
@@ -196,17 +208,19 @@ class DeliveryTests(unittest.TestCase):
         app.pressed = {"'a'"}
         with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=10), \
              patch("app.pyperclip.copy"), patch("app.pyperclip.paste", return_value="private "), \
-             patch("app.type_unicode") as paste:
+             patch("app.paste_shortcut") as paste:
             app.deliver(1, "private", 10, True, "")
         paste.assert_called_once()
 
-    def test_existing_clipboard_does_not_block_direct_input(self):
+    def test_changed_clipboard_prevents_paste(self):
         app = app_fixture()
         with patch("app.modifiers_down", return_value=False), patch("app.foreground_window", return_value=10), \
              patch("app.pyperclip.copy"), patch("app.pyperclip.paste", return_value="other"), \
-             patch("app.type_unicode") as paste:
+             patch("app.paste_shortcut") as paste:
             app.deliver(1, "private", 10, True, "")
-        paste.assert_called_once_with("private ")
+        paste.assert_not_called()
+        app.show_result.assert_not_called()
+        self.assertEqual(app.last_dictation, "private")
 
     def test_done_keeps_app_busy_until_pending_delivery_finishes(self):
         app = app_fixture()

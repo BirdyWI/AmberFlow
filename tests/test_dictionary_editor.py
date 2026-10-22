@@ -14,6 +14,16 @@ class DictionaryTests(unittest.TestCase):
     def tearDown(self):
         self.root.destroy()
 
+    def test_literal_newline_hint_preserves_user_text(self):
+        self.editor.written.insert('1.0', r'\n')
+        self.editor.update_hint()
+        self.assertIn('wörtlicher Text', self.editor.literal_hint.get())
+        self.assertEqual(self.editor.written.get('1.0', 'end-1c'), r'\n')
+        self.editor.written.delete('1.0', 'end')
+        self.editor.written.insert('1.0', '\n\n')
+        self.editor.update_hint()
+        self.assertEqual(self.editor.literal_hint.get(), '')
+
     def test_quotes(self):
         for smart in (True, False):
             config = deepcopy(DEFAULT_CONFIG)

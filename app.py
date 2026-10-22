@@ -15,8 +15,9 @@ from tkinter import messagebox, ttk
 from amber_core import (ConfigError, ConfigStore, DEFAULT_CONFIG, VERSION,
                         clean_text, polish_text, validate_config, text_for_paste)
 from dictionary_editor import DictionaryEditor
+from paste_delivery import submit
 from autostart import set_autostart, migrate_legacy_autostart
-from windows_desktop import prepare_hud, show_hud, modifiers_down, type_unicode, TEXT_INPUT_MARKER, acquire_instance, release_instance
+from windows_desktop import prepare_hud, show_hud, modifiers_down, paste_shortcut, TEXT_INPUT_MARKER, acquire_instance, release_instance
 
 # Keep the handles alive while native libraries are in use.
 DLL_HANDLES = []
@@ -72,6 +73,7 @@ class AmberFlowApp:
         self.settings = None
         self.result_window = None
         self.pending_delivery = None
+        self.last_dictation = ""
         self.processing_job = None
         self.reload_requested = False
         self.hud_hide_timer = None
@@ -124,6 +126,7 @@ class AmberFlowApp:
             pystray.MenuItem("Einstellungen", lambda: self.events.put(("settings", None)), default=True),
             pystray.MenuItem("Tastenkürzel neu verbinden", lambda: self.events.put(("reconnect", None))),
             pystray.MenuItem("Modell erneut laden", lambda: self.events.put(("reload", None))),
+            pystray.MenuItem("Letztes Diktat anzeigen", lambda: self.events.put(("last_dictation", None))),
             pystray.MenuItem("Status anzeigen", lambda: self.events.put(("show", None))),
             pystray.MenuItem("Beenden", lambda: self.events.put(("quit", None))),
         ))
@@ -469,6 +472,7 @@ class AmberFlowApp:
             self.show_status("Keine Sprache erkannt.")
             self.hide_hud_later()
             return
+        self.last_dictation = text
         if not auto_paste:
             self.root.withdraw()
             self.show_result(text, warning)
@@ -492,13 +496,19 @@ class AmberFlowApp:
             reason = "Zielfenster gewechselt"
         else:
             try:
-                type_unicode(text)
+                submit(text, target, foreground_window, modifiers_down,
+                       pyperclip.copy, pyperclip.paste, paste_shortcut, time.sleep,
+                       lambda: not self.closing and not self.cancelled.is_set()
+                       and job == self.job_id and self.pending_delivery is payload)
                 self.finish_delivery("Eingefügt." if not warning else "Eingefügt (ohne KI-Politur).")
                 return
             except Exception:
                 reason = "Texteingabe blockiert oder unvollständig – Zielfeld prüfen"
-        self.finish_delivery(f"{reason}. Diktat zur manuellen Übernahme geöffnet.")
-        self.show_result(text, f"{reason}. Die Zwischenablage bleibt unverändert. Bei Bedarf bewusst kopieren.")
+        self.finish_delivery(f"{reason}. Über ‚Letztes Diktat anzeigen‘ abrufbar.")
+        try:
+            self.tray.notify("Über ‚Letztes Diktat anzeigen‘ kannst du den Text aufrufen.", reason)
+        except Exception:
+            pass
 
     def finish_delivery(self, message):
         self.pending_delivery = None
@@ -573,7 +583,7 @@ class AmberFlowApp:
                 self.pressed.clear()
                 self.capture = (variable, set())
                 variable.set("Tasten drücken …")
-            ttk.Button(general, text="Aufnehmen", command=capture).grid(row=row, column=2, padx=4)
+            ttk.Button(general, text="Tastenkürzel festlegen", command=capture).grid(row=row, column=2, padx=4)
         field(general, 4, "Whisper-Modell", "model_size", self.config["model_size"], ("tiny", "base", "small", "medium", "large-v3-turbo"))
         field(general, 5, "Hardware", "compute_device", self.config["compute_device"], ("auto", "cpu", "cuda"))
         field(general, 6, "Sprache", "language", self.config["language"] or "auto", ("de", "en", "auto"))
@@ -589,7 +599,7 @@ class AmberFlowApp:
             variable = tk.BooleanVar(value=not self.config[name] if name == "auto_paste" else self.config[name])
             variables[name] = variable
             ttk.Checkbutton(general, text=label, variable=variable).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        ttk.Label(general, textvariable=self.status, wraplength=590).grid(row=13, column=0, columnspan=3, sticky="w", pady=8)
+        ttk.Label(general, text="Diktate werden über die Zwischenablage eingefügt. Das letzte Diktat bleibt dort verfügbar.", wraplength=590).grid(row=13, column=0, columnspan=3, sticky="w", pady=8)
         dictionary_editor = DictionaryEditor(dictionary, self.config["prompt_terms"], self.config["replacements"])
         dictionary_editor.pack(fill="both", expand=True)
         llm = self.config["llm_polish"]
@@ -742,6 +752,11 @@ class AmberFlowApp:
             elif event == "audio_error" and value == self.job_id:
                 self.cancel()
                 self.show_status("Audiofehler: Aufnahme verworfen. Mikrofon prüfen.")
+            elif event == "last_dictation":
+                if self.last_dictation:
+                    self.show_result(self.last_dictation, "Letztes Diktat dieser Sitzung. Prüfe das Zielfeld, bevor du den Text erneut einfügst.")
+                else:
+                    self.tray.notify("In dieser Sitzung liegt noch kein Diktat vor.", "AmberFlow")
             elif event == "settings":
                 self.open_settings()
             elif event == "reconnect":
@@ -769,6 +784,7 @@ class AmberFlowApp:
         self.listener.stop()
         self.tray.stop()
         self.api_key = ""
+        self.last_dictation = ""
         for timer in self.root.tk.call("after", "info"):
             self.root.after_cancel(timer)
         self.root.destroy()
