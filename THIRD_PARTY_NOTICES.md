@@ -37,3 +37,11 @@ Useful upstream sources:
 
 The application renders its own geometric tray icon. Old personal `logo.ico` or
 `logo.png` files are excluded and not loaded by this release.
+
+## Clipboard design reference
+
+The Windows clipboard transaction is an independent Python implementation informed
+by the receipt-sequenced paste approach in [Handy](https://github.com/cjpais/Handy/tree/main/src-tauri/src/paste_tx),
+an MIT-licensed project (Copyright 2025 CJ Pais). Handy source is not bundled.
+Clipboard-format validation and the empty Windows enterprise-identity marker
+handling are specific to this implementation.

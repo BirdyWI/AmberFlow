@@ -15,7 +15,7 @@ from tkinter import messagebox, ttk
 from amber_core import (ConfigError, ConfigStore, DEFAULT_CONFIG, VERSION,
                         clean_text, polish_text, validate_config, text_for_paste)
 from dictionary_editor import DictionaryEditor
-from paste_delivery import submit
+from clipboard_tx import PasteTransaction
 from autostart import set_autostart, migrate_legacy_autostart
 from windows_desktop import prepare_hud, show_hud, modifiers_down, paste_shortcut, TEXT_INPUT_MARKER, acquire_instance, release_instance
 
@@ -73,6 +73,8 @@ class AmberFlowApp:
         self.settings = None
         self.result_window = None
         self.pending_delivery = None
+        self.paste_transaction = None
+        self.delivery_diagnostics = None
         self.last_dictation = ""
         self.processing_job = None
         self.reload_requested = False
@@ -457,7 +459,7 @@ class AmberFlowApp:
         self.hud_cue_until = 0.0
         self.root.withdraw()
         self.pending_delivery = None
-        self.busy = self.processing_job is not None
+        self.busy = self.processing_job is not None or self.paste_transaction is not None
         with self.audio_lock:
             self.recording = False
             self.frames.clear()
@@ -496,11 +498,12 @@ class AmberFlowApp:
             reason = "Zielfenster gewechselt"
         else:
             try:
-                submit(text, target, foreground_window, modifiers_down,
-                       pyperclip.copy, pyperclip.paste, paste_shortcut, time.sleep,
-                       lambda: not self.closing and not self.cancelled.is_set()
-                       and job == self.job_id and self.pending_delivery is payload)
-                self.finish_delivery("Eingefügt." if not warning else "Eingefügt (ohne KI-Politur).")
+                self.paste_transaction = PasteTransaction(text,
+                    lambda: not self.closing and not self.cancelled.is_set()
+                    and job == self.job_id and self.pending_delivery is payload
+                    and foreground_window() == target and not modifiers_down(),
+                    paste_shortcut).start()
+                self.root.after(30, lambda: self.poll_delivery(payload))
                 return
             except Exception:
                 reason = "Texteingabe blockiert oder unvollständig – Zielfeld prüfen"
@@ -510,9 +513,42 @@ class AmberFlowApp:
         except Exception:
             pass
 
+    def poll_delivery(self, payload):
+        tx = self.paste_transaction
+        if tx is None:
+            return
+        if not tx.done.is_set():
+            self.root.after(30, lambda: self.poll_delivery(payload))
+            return
+        self.paste_transaction = None
+        # Technical diagnostics only, held in memory; no text/audio/title.
+        self.delivery_diagnostics = {"status": tx.status, "duration_ms": tx.ms}
+        if self.closing:
+            return
+        if self.cancelled.is_set() or payload[0] != self.job_id:
+            self.finish_delivery("Abgebrochen; Zwischenablagevorgang abgeschlossen.")
+            return
+        messages = {
+            "read_observed_restored": "Text zum Einfügen abgerufen; Zwischenablage wiederhergestellt.",
+            "newer_clipboard_preserved": "Zwischenablage inzwischen geändert; neuer Inhalt erhalten. Zielfeld prüfen.",
+            "cancelled_before_publish": "Einfügen abgebrochen; Zwischenablage unverändert.",
+            "injection_failed_restored": "Einfügen blockiert; Zwischenablage wiederhergestellt. Zielfeld prüfen.",
+            "unconfirmed_timeout_restored": "Einfügen nicht bestätigt; Zwischenablage wiederhergestellt. Zielfeld prüfen.",
+            "restore_failed": "Zwischenablage konnte nicht wiederhergestellt werden. Zielfeld und Zwischenablage prüfen.",
+        }
+        message = messages.get(tx.status, "Einfügen fehlgeschlagen. Zielfeld und Zwischenablage prüfen.")
+        if tx.status == "error" and tx.error:
+            message += " " + tx.error
+        self.finish_delivery(message)
+        if tx.status != "read_observed_restored":
+            try:
+                self.tray.notify(message + " Über ‚Letztes Diktat anzeigen‘ abrufbar.", "AmberFlow")
+            except Exception:
+                pass
+
     def finish_delivery(self, message):
         self.pending_delivery = None
-        self.busy = self.processing_job is not None
+        self.busy = self.processing_job is not None or self.paste_transaction is not None
         self.show_status(message, visible=False)
         self.hide_hud_later(2500)
 
@@ -599,7 +635,7 @@ class AmberFlowApp:
             variable = tk.BooleanVar(value=not self.config[name] if name == "auto_paste" else self.config[name])
             variables[name] = variable
             ttk.Checkbutton(general, text=label, variable=variable).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        ttk.Label(general, text="Diktate werden über die Zwischenablage eingefügt. Das letzte Diktat bleibt dort verfügbar.", wraplength=590).grid(row=13, column=0, columnspan=3, sticky="w", pady=8)
+        ttk.Label(general, text="Diktate werden kurzzeitig über die Zwischenablage eingefügt. Der vorherige Inhalt wird anschließend wiederhergestellt; neues Kopieren hat Vorrang.", wraplength=590).grid(row=13, column=0, columnspan=3, sticky="w", pady=8)
         dictionary_editor = DictionaryEditor(dictionary, self.config["prompt_terms"], self.config["replacements"])
         dictionary_editor.pack(fill="both", expand=True)
         llm = self.config["llm_polish"]
@@ -742,7 +778,7 @@ class AmberFlowApp:
                 self.deliver(*value)
             elif event == "done" and value == self.job_id:
                 self.processing_job = None
-                self.busy = self.pending_delivery is not None
+                self.busy = self.pending_delivery is not None or self.paste_transaction is not None
                 if not self.busy:
                     self.root.withdraw()
             elif event == "job_error" and value == self.job_id and not self.cancelled.is_set():
@@ -777,6 +813,10 @@ class AmberFlowApp:
     def shutdown(self):
         self.closing = True
         self.cancelled.set()
+        if self.paste_transaction is not None and not self.paste_transaction.done.is_set():
+            # Keep Tk pumping so clipboard owners can answer Windows messages.
+            self.root.after(50, self.shutdown)
+            return
         with self.audio_lock:
             self.recording = False
             self.frames.clear()

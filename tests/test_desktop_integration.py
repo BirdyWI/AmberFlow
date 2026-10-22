@@ -116,14 +116,16 @@ class DesktopTests(unittest.TestCase):
 
     def test_native_paste_reaches_the_text_field_without_review_window(self):
         field, target = self.target_field()
+        before = pyperclip.paste()
         sample = "AmberFlow Einfügetest: Grüße „gut“.\n\n• Zweite Zeile."
         self.app.deliver(self.app.job_id, sample, target, True, "")
-        self.pump(.45)
+        self.pump(1.1)
         self.assertEqual(field.get("1.0", "end-1c"), sample + " ")
         self.app.deliver(self.app.job_id, "Nächster Satz.", target, True, "")
-        self.pump(.2)
+        self.pump(1.1)
         self.assertEqual(field.get("1.0", "end-1c"), sample + " Nächster Satz. ")
-        self.assertEqual(pyperclip.paste(), "Nächster Satz. ")
+        self.assertEqual(pyperclip.paste(), before)
+        self.assertFalse(self.app.busy)
         self.assertIsNone(self.app.result_window)
         self.assertFalse(self.root.winfo_viewable())
 
