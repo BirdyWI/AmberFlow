@@ -328,6 +328,21 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(event, "model")
         self.assertIn("Fallback", payload[1])
 
+    def test_primeline_keeps_repository_on_gpu_inference_fallback(self):
+        app = app_fixture()
+        app.config.update(model_size="primeline-large-v3-turbo-german", compute_device="cuda")
+        gpu, cpu = MagicMock(), MagicMock()
+        gpu.transcribe.side_effect = RuntimeError("GPU inference failed")
+        cpu.transcribe.return_value = ([], None)
+        with patch("app.WhisperModel", side_effect=[gpu, cpu]) as factory, \
+             patch("app.threading.Thread", side_effect=lambda target, daemon: SimpleNamespace(start=target)):
+            app.load_model()
+        calls = [(call.args[0], call.kwargs["device"], call.kwargs["compute_type"])
+                 for call in factory.call_args_list]
+        repo = "tnfru/whisper-large-v3-turbo-german-ct2"
+        self.assertEqual(calls, [(repo, "cuda", "auto"), (repo, "cpu", "int8")])
+        self.assertEqual(app.events.get_nowait()[1][0], cpu)
+
     def test_both_model_attempts_fail_recoverably(self):
         app = app_fixture()
         app.config["compute_device"] = "cuda"

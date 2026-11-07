@@ -10,7 +10,11 @@ import threading
 from urllib.parse import urlsplit
 import urllib.request
 
-VERSION = "0.2.5"
+VERSION = "0.2.6"
+PRIMELINE_MODEL = "primeline-large-v3-turbo-german"
+MODEL_SIZES = ("tiny", "base", "small", "medium", "large-v3-turbo", PRIMELINE_MODEL)
+MODEL_REPOSITORIES = {PRIMELINE_MODEL: "tnfru/whisper-large-v3-turbo-german-ct2"}
+
 DEFAULT_CONFIG = {
     "hotkeys": {"ptt": "Key.ctrl_r + Key.shift_r", "toggle": "Key.f8", "cancel": "Key.esc"},
     "model_size": "small", "compute_device": "auto", "language": "de",
@@ -79,7 +83,7 @@ def validate_config(data):
     for key in ("sound_feedback", "smart_cleanup", "auto_paste", "autostart"):
         if type(result[key]) is not bool:
             raise ConfigError(f"{key} muss true oder false sein.")
-    if result["model_size"] not in ("tiny", "base", "small", "medium", "large-v3-turbo"):
+    if result["model_size"] not in MODEL_SIZES:
         raise ConfigError("Unbekannte Modellgröße.")
     if result["compute_device"] not in ("auto", "cpu", "cuda"):
         raise ConfigError("Unbekannter Hardware-Modus.")
