@@ -3,7 +3,7 @@
 Local speech-to-text for Windows, with global push-to-talk, a tray menu,
 German voice commands and optional text polishing through Ollama or a cloud API.
 
-**Version: 0.2.5 — formatted dictation with clipboard restoration.** This is a Python source distribution, not an
+**Version: 0.2.6 — optional Primeline model for German dictation.** This is a Python source distribution, not an
 installer or signed EXE. Windows desktop acceptance checks are listed in
 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). No macOS, Linux or Apple Neural
 Engine support is claimed for this release.
@@ -50,6 +50,13 @@ into its user cache. A different model may trigger another download. Allow
 several GB of free disk space for larger models and sufficient RAM/VRAM;
 performance depends on the selected model and hardware. Start with `small`, or
 `tiny`/`base` on constrained machines. CPU INT8 inference is supported.
+
+For German dictation, select `primeline-large-v3-turbo-german` in the model
+settings. AmberFlow downloads the [CTranslate2 model](https://huggingface.co/tnfru/whisper-large-v3-turbo-german-ct2)
+on first use. Once cached, it can run offline. The model uses BF16 weights.
+AmberFlow lets CTranslate2 choose the GPU compute type and uses INT8 on CPU,
+including after a GPU initialization or inference-probe failure. Select
+`small` to return to the default model.
 
 If native libraries cannot load, install the current Microsoft Visual C++ x64
 Redistributable and verify the 64-bit Python installation.

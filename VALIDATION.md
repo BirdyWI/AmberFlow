@@ -1,3 +1,14 @@
+# AmberFlow 0.2.6 validation
+
+The Primeline model was downloaded and tested offline on Windows with CPU INT8
+and an RTX 3060 Laptop GPU. A 44-second German speech sample was transcribed
+through the final word. Both devices reloaded the default small model. With an
+empty cache and offline mode, the app signalled a model loading error.
+The GPU-to-CPU fallback was tested with a simulated GPU inference failure.
+Two GPU runs using the application's transcription worker exited cleanly. A
+separate main-thread transcription harness crashed at process exit with both
+Primeline and small. The user also tested Primeline with live German dictation.
+
 # AmberFlow 0.2.5 validation — 2026-10-22
 
 - Final corrected candidate: 110 tests executed, 107 passed and 3 desktop tests

@@ -16,6 +16,17 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(validate_config({})["auto_paste"])
         self.assertFalse(validate_config({"auto_paste": False})["auto_paste"])
 
+    def test_primeline_selection_roundtrips_with_user_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ConfigStore(Path(tmp) / "config.json")
+            original = validate_config({"auto_paste": False, "prompt_terms": ["AmberFlow"],
+                                        "hotkeys": {"toggle": "Key.f9"}})
+            self.assertEqual(original["model_size"], "small")
+            for size in ("primeline-large-v3-turbo-german", "small"):
+                expected = dict(original, model_size=size)
+                store.save(expected)
+                self.assertEqual(store.load()[0], expected)
+
     def test_defaults_are_independent(self):
         first = validate_config({})
         first["hotkeys"]["ptt"] = "Key.f2"

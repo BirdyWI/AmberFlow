@@ -1,3 +1,9 @@
+# AmberFlow 0.2.6 source release checklist
+
+- German dictation accepted in the local Windows installation.
+- Model weights are downloaded separately from Hugging Face.
+- This release distributes the source code.
+
 # AmberFlow 0.2.5 source release checklist
 
 - [x] Separate candidate tested; owner accepted real dictation and clipboard preservation.

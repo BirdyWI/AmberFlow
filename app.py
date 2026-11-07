@@ -12,7 +12,8 @@ import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from amber_core import (ConfigError, ConfigStore, DEFAULT_CONFIG, VERSION,
+from amber_core import (ConfigError, ConfigStore, DEFAULT_CONFIG, MODEL_REPOSITORIES, MODEL_SIZES,
+                        PRIMELINE_MODEL, VERSION,
                         clean_text, polish_text, validate_config, text_for_paste)
 from dictionary_editor import DictionaryEditor
 from clipboard_tx import PasteTransaction
@@ -310,15 +311,18 @@ class AmberFlowApp:
                     gpu = pref == "cuda"
                 device = "cuda" if gpu else "cpu"
                 threads = max(1, min(8, os.cpu_count() or 1))
+                size = config["model_size"]
+                source = MODEL_REPOSITORIES.get(size, size)
+                gpu_compute = "auto" if size == PRIMELINE_MODEL else "float16"
                 try:
-                    model = WhisperModel(config["model_size"], device=device,
-                                         compute_type="float16" if gpu else "int8", cpu_threads=threads)
+                    model = WhisperModel(source, device=device,
+                                         compute_type=gpu_compute if gpu else "int8", cpu_threads=threads)
                     # Validate actual inference, including lazily loaded GPU libraries.
                     list(model.transcribe(np.zeros(SAMPLE_RATE, dtype=np.float32), beam_size=1)[0])
                 except Exception:
                     if not gpu:
                         raise
-                    model = WhisperModel(config["model_size"], device="cpu", compute_type="int8", cpu_threads=threads)
+                    model = WhisperModel(source, device="cpu", compute_type="int8", cpu_threads=threads)
                     list(model.transcribe(np.zeros(SAMPLE_RATE, dtype=np.float32), beam_size=1)[0])
                     device = "CPU (GPU-Fallback)"
                 self.events.put(("model", (model, f"{config['model_size']} / {device}")))
@@ -620,7 +624,7 @@ class AmberFlowApp:
                 self.capture = (variable, set())
                 variable.set("Tasten drücken …")
             ttk.Button(general, text="Tastenkürzel festlegen", command=capture).grid(row=row, column=2, padx=4)
-        field(general, 4, "Whisper-Modell", "model_size", self.config["model_size"], ("tiny", "base", "small", "medium", "large-v3-turbo"))
+        field(general, 4, "Whisper-Modell", "model_size", self.config["model_size"], MODEL_SIZES)
         field(general, 5, "Hardware", "compute_device", self.config["compute_device"], ("auto", "cpu", "cuda"))
         field(general, 6, "Sprache", "language", self.config["language"] or "auto", ("de", "en", "auto"))
         devices = {"Windows-Standard": None}
